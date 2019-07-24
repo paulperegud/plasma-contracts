@@ -1,6 +1,6 @@
 import rlp
 from rlp.sedes import binary, CountableList, big_endian_int
-from ethereum import utils
+import eth_utils as utils
 from plasma_core.utils.signatures import sign, get_signer
 from plasma_core.utils.merkle.fixed_merkle import FixedMerkle
 from plasma_core.transaction import Transaction

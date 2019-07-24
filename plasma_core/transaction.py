@@ -1,6 +1,6 @@
 import rlp
 from rlp.sedes import big_endian_int, binary, CountableList
-from ethereum import utils
+import eth_utils as utils
 from plasma_core.constants import NULL_SIGNATURE, NULL_ADDRESS
 from plasma_core.utils.eip712_struct_hash import hash_struct
 from plasma_core.utils.signatures import sign, get_signer

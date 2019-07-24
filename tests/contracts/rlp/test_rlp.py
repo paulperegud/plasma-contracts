@@ -8,7 +8,7 @@ import rlp
 from eth_utils import encode_hex
 
 from rlp.sedes import big_endian_int
-from ethereum import utils
+import eth_utils as utils
 
 
 class Eight(rlp.Serializable):
