@@ -10,6 +10,8 @@ from eth_utils import encode_hex
 from rlp.sedes import big_endian_int
 import eth_utils as utils
 
+address = rlp.sedes.Binary.fixed_length(20, allow_empty=True)
+
 
 class Eight(rlp.Serializable):
     fields = [
@@ -19,19 +21,9 @@ class Eight(rlp.Serializable):
         ('f3', big_endian_int),
         ('f4', big_endian_int),
         ('f5', big_endian_int),
-        ('f6', utils.address),
-        ('f7', utils.address)
+        ('f6', address),
+        ('f7', address)
     ]
-
-    def __init__(self, f0, f1, f2, f3, f4, f5, f6, f7):
-        self.f0 = f0
-        self.f1 = f1
-        self.f2 = f2
-        self.f3 = f3
-        self.f4 = f4
-        self.f5 = f5
-        self.f6 = f6
-        self.f7 = f7
 
 
 class Eleven(rlp.Serializable):
@@ -44,23 +36,10 @@ class Eleven(rlp.Serializable):
         ('f5', big_endian_int),
         ('f6', big_endian_int),
         ('f7', big_endian_int),
-        ('f8', utils.address),
-        ('f9', utils.address),
-        ('f10', utils.address)
+        ('f8', address),
+        ('f9', address),
+        ('f10', address)
     ]
-
-    def __init__(self, f0, f1, f2, f3, f4, f5, f6, f7, f8, f9, f10):
-        self.f0 = f0
-        self.f1 = f1
-        self.f2 = f2
-        self.f3 = f3
-        self.f4 = f4
-        self.f5 = f5
-        self.f6 = f6
-        self.f7 = f7
-        self.f8 = f8
-        self.f9 = f9
-        self.f10 = f10
 
 
 @pytest.fixture

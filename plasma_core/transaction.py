@@ -11,6 +11,7 @@ from rlp.exceptions import (SerializationError, DeserializationError)
 def pad_list(to_pad, value, required_length):
     return to_pad + [value] * (required_length - len(to_pad))
 
+address = rlp.sedes.Binary.fixed_length(20, allow_empty=True)
 
 class TransactionInput(rlp.Serializable):
 
@@ -20,21 +21,15 @@ class TransactionInput(rlp.Serializable):
         ('oindex', big_endian_int)
     )
 
-    def __init__(self, blknum=0, txindex=0, oindex=0):
-        self.blknum = blknum
-        self.txindex = txindex
-        self.oindex = oindex
-
     @property
     def identifier(self):
         return encode_utxo_id(self.blknum, self.txindex, self.oindex)
 
-
 class TransactionOutput(rlp.Serializable):
 
     fields = (
-        ('owner', utils.address),
-        ('token', utils.address),
+        ('owner', address),
+        ('token', address),
         ('amount', big_endian_int)
     )
 

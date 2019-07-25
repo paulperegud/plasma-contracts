@@ -1,4 +1,4 @@
-import rlp
+from rlp.sedes.serializable import Serializable
 from rlp.sedes import binary, CountableList, big_endian_int
 import eth_utils as utils
 from plasma_core.utils.signatures import sign, get_signer
@@ -7,17 +7,13 @@ from plasma_core.transaction import Transaction
 from plasma_core.constants import NULL_SIGNATURE
 
 
-class Block(rlp.Serializable):
-
+class Block():
     fields = (
         ('transactions', CountableList(Transaction)),
         ('number', big_endian_int),
-        ('signature', binary)
     )
 
     def __init__(self, transactions=[], number=0, signature=NULL_SIGNATURE):
-        self.transactions = transactions
-        self.number = number
         self.signature = signature
 
     @property
@@ -39,7 +35,7 @@ class Block(rlp.Serializable):
 
     @property
     def encoded(self):
-        return rlp.encode(self, UnsignedBlock)
+        raise NotImplementedError()
 
     @property
     def is_deposit_block(self):
@@ -47,6 +43,3 @@ class Block(rlp.Serializable):
 
     def sign(self, key):
         self.signature = sign(self.hash, key)
-
-
-UnsignedBlock = Block.exclude(['signature'])
