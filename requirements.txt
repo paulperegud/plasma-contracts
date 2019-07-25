@@ -1,5 +1,5 @@
 eip712-structs==1.1.0
-vyper==0.1.0b4
+vyper==0.1.0b11
 web3==5.0.0b4
 eth-tester[py-evm]==0.2.0b2
 eth-utils==1.6.1
