@@ -13,6 +13,7 @@ import "./RLP.sol";
 
 import "./ERC20.sol";
 
+pragma experimental ABIEncoderV2;
 
 /**
  * @title RootChain
@@ -334,7 +335,7 @@ contract RootChain {
      * @param _outputTx RLP encoded transaction that created the exiting output.
      * @param _outputTxInclusionProof A Merkle proof showing that the transaction was included.
      */
-    function startStandardExit(uint192 _utxoPos, bytes _outputTx, bytes _outputTxInclusionProof)
+    function startStandardExit(uint192 _utxoPos, bytes _outputTx, bytes _guardPreimage, bytes _outputTxInclusionProof)
         public
         payable
         onlyWithValue(standardExitBond)
@@ -348,8 +349,10 @@ contract RootChain {
         // Parse outputTx.
         PlasmaCore.TransactionOutput memory output = _outputTx.getOutput(oindex);
 
+        RLP.RLPItem[] memory clearGuard = unpackGuard(output.guard, _guardPreimage);
+
         // Only output owner can start an exit.
-        require(msg.sender == output.owner);
+        require(msg.sender == getOwner(clearGuard));
 
         uint192 exitId = getStandardExitId(_outputTx, _utxoPos);
 
@@ -372,13 +375,13 @@ contract RootChain {
         // Enqueue the exit into the queue and update the exit mapping.
         _enqueueExit(output.token, exitPriority);
         exits[exitId] = Exit({
-            owner: output.owner,
+            owner: getOwner(clearGuard),
             token: output.token,
             amount: output.amount,
             position: _utxoPos
         });
 
-        emit ExitStarted(output.owner, exitId);
+        emit ExitStarted(getOwner(clearGuard), exitId);
     }
 
     /**
@@ -546,7 +549,8 @@ contract RootChain {
      */
     function piggybackInFlightExit(
         bytes _inFlightTx,
-        uint8 _outputIndex
+        uint8 _outputIndex,
+        bytes _guardPreimage
     )
         public
         payable
@@ -583,7 +587,10 @@ contract RootChain {
             // Set the output so it can be exited later.
             inFlightExit.outputs[_outputIndex - MAX_INPUTS] = output;
         }
-        require(output.owner == msg.sender);
+        RLP.RLPItem[] memory clearGuard = unpackGuard(output.guard, _guardPreimage);
+
+        // Only output owner can piggyback.
+        require(msg.sender == getOwner(clearGuard));
 
         // Enqueue the exit in a right queue, if not already enqueued.
         if (_shouldEnqueueInFlightExit(inFlightExit, output.token)) {
@@ -1392,6 +1399,32 @@ contract RootChain {
         returns (bool)
     {
         return blknum % CHILD_BLOCK_INTERVAL != 0;
+    }
+
+    function unpackGuard(bytes32 _guard, bytes _preimage)
+        pure
+        returns (RLP.RLPItem[])
+    {
+        require(keccak256(_preimage) == _guard);
+        RLP.RLPItem[] memory clearguard = _preimage.toRLPItem().toList();
+        return clearguard;
+    }
+
+    function getOwner(RLP.RLPItem[] clearguard)
+        pure
+        returns (address)
+    {
+        // settlement output: [type, venue, trader, nonce]
+        if (clearguard[0].toUint() == 1) return clearguard[2].toAddress();
+        // payment output: [type, owner, nonce]
+        return clearguard[1].toAddress();
+    }
+
+    function getPossessor(RLP.RLPItem[] clearguard)
+        pure
+        returns (address)
+    {
+        return clearguard[1].toAddress();
     }
 
     /**

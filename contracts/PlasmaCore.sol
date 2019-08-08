@@ -30,7 +30,7 @@ library PlasmaCore {
     }
 
     struct TransactionOutput {
-        address owner;
+        bytes32 guard;
         address token;
         uint256 amount;
     }
@@ -75,7 +75,7 @@ library PlasmaCore {
                 txindex: input[1].toUint(),
                 oindex: input[2].toUint()
             });
-            
+
             // check for empty inputs - disallow gaps
             if (decodedTx.inputs[i].blknum == 0
               && decodedTx.inputs[i].txindex == 0
@@ -84,14 +84,14 @@ library PlasmaCore {
 
             RLP.RLPItem[] memory output = outputs[i].toList();
             decodedTx.outputs[i] = TransactionOutput({
-                owner: output[0].toAddress(),
+                guard: output[0].toBytes32(),
                 token: output[1].toAddress(),
                 amount: output[2].toUint()
             });
 
             // check for empty outputs - disallow gaps
-            if (decodedTx.outputs[i].owner == 0 
-             && decodedTx.outputs[i].token == 0 
+            if (decodedTx.outputs[i].guard == 0
+             && decodedTx.outputs[i].token == 0
              && decodedTx.outputs[i].amount == 0) emptySeen[1] = true;
             else require(emptySeen[1] == false, "Gaps in outputs are not allowed ");
         }
