@@ -1,7 +1,9 @@
 pragma solidity ^0.4.0;
+pragma experimental ABIEncoderV2;
 
 import "./ByteUtils.sol";
 import "./RLP.sol";
+import "./ECRecovery.sol";
 
 
 /**
@@ -36,6 +38,7 @@ library PlasmaCore {
     }
 
     struct Transaction {
+        uint256 txtype;
         TransactionInput[NUM_TXS] inputs;
         TransactionOutput[NUM_TXS] outputs;
         bytes32 metadata;
@@ -57,15 +60,13 @@ library PlasmaCore {
         returns (Transaction)
     {
         RLP.RLPItem[] memory txList = _tx.toRLPItem().toList();
-        require(txList.length == 2 || txList.length == 3);
+        require(txList.length == 4);
 
         Transaction memory decodedTx;
-        if (txList.length == 3){
-           //ensuring that metadata isn't larger than 32 bytes
-           decodedTx.metadata = txList[2].toBytes32();
-        }
-        RLP.RLPItem[] memory inputs = txList[0].toList();
-        RLP.RLPItem[] memory outputs = txList[1].toList();
+        decodedTx.txtype = txList[0].toUint();
+        RLP.RLPItem[] memory inputs = txList[1].toList();
+        RLP.RLPItem[] memory outputs = txList[2].toList();
+        decodedTx.metadata = txList[3].toBytes32();
         bool[] memory emptySeen = new bool[](2);
 
         for (uint i = 0; i < NUM_TXS; i++) {
@@ -73,7 +74,8 @@ library PlasmaCore {
             decodedTx.inputs[i] = TransactionInput({
                 blknum: input[0].toUint(),
                 txindex: input[1].toUint(),
-                oindex: input[2].toUint()
+                oindex: input[2].toUint(),
+                signer: input[3].toAddress()
             });
 
             // check for empty inputs - disallow gaps
@@ -195,6 +197,27 @@ library PlasmaCore {
     {
         return _sliceOne(_signatures, SIGNATURE_SIZE_BYTES, _index);
     }
+
+    /* function checkConfirmSig(bytes _confirmSigs, uint256 txType, TransactionInput[4] memory inputs, bytes32 blockroot) */
+    /*     view */
+    /* { */
+    /*     address[NUM_TXS] memory signers; */
+    /*     // get signers */
+    /*     for (uint i = 0; i < NUM_TXS; i++) { */
+    /*         if (inputs[i].blknum == 0) break; */
+    /*         signers[i] = ECRecovery.recover(blockroot, sliceSignature(_confirmSigs, i)); */
+    /*     } */
+
+    /*     // check if for every input there exits a valid signature from a signer */
+    /*     for (i = 0; i < NUM_TXS; i++) { */
+    /*         for (uint j = 0; j < NUM_TXS; j++) { */
+    /*             if (inputs[i].blknum == 0) break; */
+    /*             if (inputs[i].signer == signers[j]) continue; */
+    /*         } */
+    /*         require(false, "Missing confirmation signature"); */
+    /*     } */
+    /* } */
+
 
     /**
      * @dev Slices a Merkle proof off a list of proofs.

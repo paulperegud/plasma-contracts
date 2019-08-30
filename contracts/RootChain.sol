@@ -1,4 +1,6 @@
 pragma solidity ^0.4.0;
+pragma experimental ABIEncoderV2;
+
 
 import "./Bits.sol";
 import "./ByteUtils.sol";
@@ -13,8 +15,6 @@ import "./RLP.sol";
 
 import "./ERC20.sol";
 
-pragma experimental ABIEncoderV2;
-
 /**
  * @title RootChain
  * @dev Represents a MoreVP Plasma chain.
@@ -27,6 +27,7 @@ contract RootChain {
     using RLP for RLP.RLPItem;
     using PlasmaCore for bytes;
     using PlasmaCore for PlasmaCore.TransactionInput;
+    using PlasmaCore for PlasmaCore.Transaction;
     using PlasmaCore for uint192;
     using PlasmaCore for uint256;
 
@@ -318,7 +319,7 @@ contract RootChain {
         });
 
         emit DepositCreated(
-            decodedTx.outputs[0].owner,
+            msg.sender, // TODO: <- fast and ugly
             blknum,
             decodedTx.outputs[0].token,
             decodedTx.outputs[0].amount
@@ -347,12 +348,18 @@ contract RootChain {
         uint8 oindex = uint8(_utxoPos.getOindex());
 
         // Parse outputTx.
-        PlasmaCore.TransactionOutput memory output = _outputTx.getOutput(oindex);
+        PlasmaCore.Transaction memory decodedTx = PlasmaCore.decode(_outputTx);
+        PlasmaCore.TransactionOutput memory output = decodedTx.outputs[oindex];
 
         RLP.RLPItem[] memory clearGuard = unpackGuard(output.guard, _guardPreimage);
 
         // Only output owner can start an exit.
         require(msg.sender == getOwner(clearGuard));
+
+        /* // Check if confirmSig is required and if it is correct. */
+        /* if (isMVP(decodedTx.txtype)) { */
+        /*     PlasmaCore.checkConfirmSig(_confirmSigs, decodedTx.txtype, decodedTx.inputs, blocks[_utxoPos.getBlknum()].root); */
+        /* } */
 
         uint192 exitId = getStandardExitId(_outputTx, _utxoPos);
 
@@ -476,6 +483,7 @@ contract RootChain {
     function startInFlightExit(
         bytes _inFlightTx,
         bytes _inputTxs,
+        bytes _inputGuards,
         bytes _inputTxsInclusionProofs,
         bytes _inFlightTxSigs
     )
@@ -492,6 +500,9 @@ contract RootChain {
 
         // Separate the inputs transactions.
         RLP.RLPItem[] memory splitInputTxs = _inputTxs.toRLPItem().toList();
+
+        // Separate input guards
+        RLP.RLPItem[] memory splitInputGuards = _inputGuards.toRLPItem().toList();
         uint256 [] memory inputTxoPos = new uint256[](splitInputTxs.length);
 
         uint256 youngestInputTxoPos;
@@ -502,7 +513,8 @@ contract RootChain {
 
 
             (inFlightExit.inputs[i], inputTxoPos[i], finalized) = _getInputInfo(
-                _inFlightTx, splitInputTxs[i].toBytes(), _inputTxsInclusionProofs, _inFlightTxSigs.sliceSignature(i), i
+                _inFlightTx, splitInputTxs[i].toBytes(), splitInputGuards[i].toBytes(),
+                _inputTxsInclusionProofs, _inFlightTxSigs.sliceSignature(i), i
             );
 
             youngestInputTxoPos = Math.max(youngestInputTxoPos, inputTxoPos[i]);
@@ -637,6 +649,7 @@ contract RootChain {
         bytes _competingTx,
         uint8 _competingTxInputIndex,
         uint256 _competingTxPos,
+        bytes _txGuardPreimage,
         bytes _competingTxInclusionProof,
         bytes _competingTxSig
     )
@@ -658,7 +671,9 @@ contract RootChain {
 
         // Check that the competing transaction is correctly signed.
         PlasmaCore.TransactionOutput memory input = inFlightExit.inputs[_inFlightTxInputIndex];
-        require(input.owner == ECRecovery.recover(Eip712StructHash.hash(_competingTx), _competingTxSig));
+        RLP.RLPItem[] memory clearGuard = unpackGuard(input.guard, _txGuardPreimage);
+        address input_owner = getOwner(clearGuard);
+        require(input_owner == ECRecovery.recover(Eip712StructHash.hash(_competingTx), _competingTxSig));
 
         // Determine the position of the competing transaction.
         uint256 competitorPosition = ~uint256(0);
@@ -723,6 +738,7 @@ contract RootChain {
     function challengeInFlightExitInputSpent(
         bytes _inFlightTx,
         uint8 _inFlightTxInputIndex,
+        bytes _txGuardPreimage,
         bytes _spendingTx,
         uint8 _spendingTxInputIndex,
         bytes _spendingTxSig
@@ -741,9 +757,11 @@ contract RootChain {
         uint256 inFlightTxInputPos = _inFlightTx.getInputUtxoPosition(_inFlightTxInputIndex);
         require(inFlightTxInputPos == _spendingTx.getInputUtxoPosition(_spendingTxInputIndex));
 
-        // Check that the spending transaction is signed by the input owner.
+        // Check that the spending authorization (TODO: it's not just the signature!)
         PlasmaCore.TransactionOutput memory input = inFlightExit.inputs[_inFlightTxInputIndex];
-        require(input.owner == ECRecovery.recover(Eip712StructHash.hash(_spendingTx), _spendingTxSig));
+        RLP.RLPItem[] memory clearGuard = unpackGuard(input.guard, _txGuardPreimage);
+        address input_owner = getOwner(clearGuard);
+        require(input_owner == ECRecovery.recover(Eip712StructHash.hash(_spendingTx), _spendingTxSig));
 
         // Remove the input from the piggyback map and pay out the bond.
         setExitCancelled(inFlightExit, _inFlightTxInputIndex);
@@ -765,6 +783,7 @@ contract RootChain {
         bytes _inFlightTx,
         uint256 _inFlightTxOutputPos,
         bytes _inFlightTxInclusionProof,
+        bytes _txGuardPreimage,
         bytes _spendingTx,
         uint8 _spendingTxInputIndex,
         bytes _spendingTxSig
@@ -785,7 +804,9 @@ contract RootChain {
 
         // Check that the spending transaction is signed by the input owner.
         PlasmaCore.TransactionOutput memory output = _inFlightTx.getOutput(oindex);
-        require(output.owner == ECRecovery.recover(Eip712StructHash.hash(_spendingTx), _spendingTxSig));
+        RLP.RLPItem[] memory clearGuard = unpackGuard(output.guard, _txGuardPreimage);
+        address output_owner = getOwner(clearGuard);
+        require(output_owner == ECRecovery.recover(Eip712StructHash.hash(_spendingTx), _spendingTxSig));
 
         // Remove the output from the piggyback map and pay out the bond.
         setExitCancelled(inFlightExit, oindex + MAX_INPUTS);
@@ -942,7 +963,7 @@ contract RootChain {
     function getInFlightExitOutput(bytes _tx, uint256 _outputIndex)
         public
         view
-        returns (address, address, uint256)
+        returns (bytes32, address, uint256)
     {
         InFlightExit memory inFlightExit = _getInFlightExit(_tx);
         PlasmaCore.TransactionOutput memory output;
@@ -951,7 +972,7 @@ contract RootChain {
         } else {
             output = inFlightExit.outputs[_outputIndex - MAX_INPUTS];
         }
-        return (output.owner, output.token, output.amount);
+        return (output.guard, output.token, output.amount);
     }
 
     /**
@@ -1263,6 +1284,7 @@ contract RootChain {
     function _getInputInfo(
         bytes _tx,
         bytes memory _inputTx,
+        bytes memory _inputGuard,
         bytes _txInputTxsInclusionProofs,
         bytes _inputSig,
         uint8 _inputIndex
@@ -1410,22 +1432,31 @@ contract RootChain {
         return clearguard;
     }
 
-    function getOwner(RLP.RLPItem[] clearguard)
+    function getOwner(RLP.RLPItem[] _clearguard)
         pure
         returns (address)
     {
         // settlement output: [type, venue, trader, nonce]
-        if (clearguard[0].toUint() == 1) return clearguard[2].toAddress();
+        if (_clearguard[0].toUint() == 1) return _clearguard[2].toAddress();
         // payment output: [type, owner, nonce]
-        return clearguard[1].toAddress();
+        return _clearguard[1].toAddress();
     }
 
-    function getPossessor(RLP.RLPItem[] clearguard)
+    function getPossessor(RLP.RLPItem[] _clearguard)
         pure
         returns (address)
     {
-        return clearguard[1].toAddress();
+        return _clearguard[1].toAddress();
     }
+
+    /* function isMVP(uint256 txType) */
+    /*     pure */
+    /*     returns (bool) */
+    /* { */
+    /*     if (txType == 1) return true; */
+    /*     return false; */
+    /* } */
+
 
     /**
      * @dev Can be called only once in `init`.
