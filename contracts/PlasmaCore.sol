@@ -155,6 +155,15 @@ library PlasmaCore {
         return _utxoPos / TX_OFFSET;
     }
 
+    function getTxType(bytes memory _tx)
+        internal
+        view
+        returns (uint256)
+    {
+        Transaction memory decodedTx = decode(_tx);
+        return decodedTx.txtype;
+    }
+
     /**
      * @dev Returns the identifier for an input to a transaction.
      * @param _tx RLP encoded input.

@@ -535,8 +535,7 @@ contract RootChain {
             }
         }
 
-        // Validate sums of inputs against sum of outputs token-wise
-        _validateInputsOutputsSumUp(inFlightExit, _inFlightTx);
+        _validateStatelessCorrectness(inFlightExit, _inFlightTx);
 
         // Update the exit mapping.
         inFlightExit.bondOwner = msg.sender;
@@ -1214,6 +1213,30 @@ contract RootChain {
     {
         uint256 periodTime = minExitPeriod / 2;
         return ((block.timestamp - getInFlightExitTimestamp(_inFlightExit)) / periodTime) < 1;
+    }
+
+    // Validate if state transition is correct:
+    // * no token is printed
+    // * additional rules stemming from txtype
+    function _validateStatelessCorrectness(InFlightExit storage _inFlightExit, bytes _tx)
+        internal
+        view
+    {
+        // first validate if no tokens are printed
+        _validateInputsOutputsSumUp(_inFlightExit, _tx);
+
+        // other checks
+        _validateByTxType(PlasmaCore.getTxType(_tx), _inFlightExit, _tx);
+    }
+
+    function _validateByTxType(uint256 txtype, InFlightExit storage _inFlightExit, bytes _tx)
+        internal
+        view
+    {
+        // here registry comes into play
+        // TODO: add an example
+        if (txtype == 0) return;
+        require(false, "unknown tx type");
     }
 
     /**
