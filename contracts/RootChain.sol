@@ -83,6 +83,12 @@ contract RootChain {
         uint256 oldestCompetitor;
     }
 
+    struct IFEHelper {
+        RLP.RLPItem[] splitInputGuards;
+        RLP.RLPItem[] splitInputTxs;
+        uint256[] inputTxoPos;
+    }
+
     struct _InputSum {
         address token;
         uint256 amount;
@@ -498,12 +504,15 @@ contract RootChain {
         // Check if such an in-flight exit has already been finalized
         require(!isFinalized(inFlightExit));
 
+        IFEHelper memory helper;
+
         // Separate the inputs transactions.
-        RLP.RLPItem[] memory splitInputTxs = _inputTxs.toRLPItem().toList();
+        helper.splitInputTxs = _inputTxs.toRLPItem().toList();
 
         // Separate input guards
-        RLP.RLPItem[] memory splitInputGuards = _inputGuards.toRLPItem().toList();
-        uint256 [] memory inputTxoPos = new uint256[](splitInputTxs.length);
+        helper.splitInputGuards = _inputGuards.toRLPItem().toList();
+
+        helper.inputTxoPos = new uint256[](helper.splitInputTxs.length);
 
         uint256 youngestInputTxoPos;
         bool finalized;
@@ -512,17 +521,17 @@ contract RootChain {
             if (_inFlightTx.getInputUtxoPosition(i) == 0) break;
 
 
-            (inFlightExit.inputs[i], inputTxoPos[i], finalized) = _getInputInfo(
-                _inFlightTx, splitInputTxs[i].toBytes(), splitInputGuards[i].toBytes(),
+            (inFlightExit.inputs[i], helper.inputTxoPos[i], finalized) = _getInputInfo(
+                _inFlightTx, helper.splitInputTxs[i].toBytes(), helper.splitInputGuards[i].toBytes(),
                 _inputTxsInclusionProofs, _inFlightTxSigs.sliceSignature(i), i
             );
 
-            youngestInputTxoPos = Math.max(youngestInputTxoPos, inputTxoPos[i]);
+            youngestInputTxoPos = Math.max(youngestInputTxoPos, helper.inputTxoPos[i]);
             any_finalized = any_finalized || finalized;
 
             // check whether IFE spends one UTXO twice
             for (uint8 j = 0; j < i; ++j){
-                require(inputTxoPos[i] != inputTxoPos[j]);
+                require(helper.inputTxoPos[i] != helper.inputTxoPos[j]);
             }
         }
 
