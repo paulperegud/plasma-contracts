@@ -603,6 +603,7 @@ contract RootChain {
 
         // Only output owner can piggyback.
         require(msg.sender == getOwner(clearGuard));
+        output.beneficiery = getOwner(clearGuard);
 
         // Enqueue the exit in a right queue, if not already enqueued.
         if (_shouldEnqueueInFlightExit(inFlightExit, output.token)) {
@@ -1284,7 +1285,7 @@ contract RootChain {
     function _getInputInfo(
         bytes _tx,
         bytes memory _inputTx,
-        bytes memory _inputGuard,
+        bytes memory _inputGuardPreimage,
         bytes _txInputTxsInclusionProofs,
         bytes _inputSig,
         uint8 _inputIndex
@@ -1301,7 +1302,8 @@ contract RootChain {
 
         // Check that the transaction is valid.
         require(_transactionIncluded(_inputTx, inputUtxoPos, _txInputTxsInclusionProofs.sliceProof(_inputIndex)));
-        require(input.owner == ECRecovery.recover(Eip712StructHash.hash(_tx), _inputSig));
+        RLP.RLPItem[] memory clearGuard = unpackGuard(input.guard, _inputGuardPreimage);
+        require(getOwner(clearGuard) == ECRecovery.recover(Eip712StructHash.hash(_tx), _inputSig));
 
         // Challenge exiting standard exits from inputs
         already_finalized = _cleanupDoubleSpendingStandardExits(inputUtxoPos, _inputTx);
@@ -1373,11 +1375,11 @@ contract RootChain {
                     ethTransferAmount += output.amount;
                 }
                 else {
-                    require(ERC20(_token).transfer(output.owner, output.amount));
+                    require(ERC20(_token).transfer(output.beneficiery, output.amount));
                 }
                 emit InFlightExitFinalized(_inFlightExitId, i);
             }
-            output.owner.transfer(ethTransferAmount);
+            output.beneficiery.transfer(ethTransferAmount);
         }
 
         if (_shouldClearInFlightExit(_inFlightExit)) {

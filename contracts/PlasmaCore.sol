@@ -35,6 +35,7 @@ library PlasmaCore {
         bytes32 guard;
         address token;
         uint256 amount;
+        address beneficiery;
     }
 
     struct Transaction {
@@ -74,8 +75,7 @@ library PlasmaCore {
             decodedTx.inputs[i] = TransactionInput({
                 blknum: input[0].toUint(),
                 txindex: input[1].toUint(),
-                oindex: input[2].toUint(),
-                signer: input[3].toAddress()
+                oindex: input[2].toUint()
             });
 
             // check for empty inputs - disallow gaps
@@ -88,7 +88,9 @@ library PlasmaCore {
             decodedTx.outputs[i] = TransactionOutput({
                 guard: output[0].toBytes32(),
                 token: output[1].toAddress(),
-                amount: output[2].toUint()
+                amount: output[2].toUint(),
+                beneficiery: address(0)
+
             });
 
             // check for empty outputs - disallow gaps
