@@ -402,9 +402,9 @@ contract RootChain {
      * @param _standardExitId Identifier of the standard exit to challenge.
      * @param _challengeTx RLP encoded transaction that spends the exiting output.
      * @param _inputIndex Which input of the challenging tx corresponds to the exiting output.
-     * @param _challengeTxSig Signature from the exiting output owner over the spend.
+     * @param _spendAuthorization Signature or other txtype specific authorization.
      */
-    function challengeStandardExit(uint192 _standardExitId, bytes _challengeTx, uint8 _inputIndex, bytes _challengeTxSig)
+    function challengeStandardExit(uint192 _standardExitId, bytes _challengeTx, uint8 _inputIndex, bytes _spendAuthorization)
         public
     {
         // Check that the output is being used as an input to the challenging tx.
@@ -413,10 +413,42 @@ contract RootChain {
 
         // Check if exit exists.
         address owner = exits[_standardExitId].owner;
-        // Check that the challenging tx is signed by the output's owner.
-        require(owner == ECRecovery.recover(Eip712StructHash.hash(_challengeTx), _challengeTxSig));
+
+        // check spend authorization
+        _checkInputSpendAuthorization(owner, _challengeTx, _spendAuthorization);
 
         _processChallengeStandardExit(challengedUtxoPos, _standardExitId);
+    }
+
+    function _checkInputSpendAuthorization()
+        internal
+        pure
+    {
+        // check if txtype can spend outputtype
+
+        // check if spend is valid according to particular txtype rules
+        uint256 txtype = PlasmaCore.getTxType(_challengeTx);
+        if (txtype == 0) {
+            _checkInputSpendAuthorizationT0(owner, _challengeTx, _spendAuthorization);
+            return
+        }
+        if (txtype == 1) {
+            _checkInputSpendAuthorizationT1(owner, _challengeTx, _spendAuthorization);
+        }
+    }
+
+    function _checkInputSpendAuthorizationT1(address owner, bytes _challengeTx, bytes _spendAuthorization)
+        internal
+        pure
+    {
+    }
+
+    function _checkInputSpendAuthorizationT0(address owner, bytes _challengeTx, bytes _spendAuthorization)
+        internal
+        pure
+    {
+        // Check that the challenging tx is signed by the output's owner.
+        require(owner == ECRecovery.recover(Eip712StructHash.hash(_challengeTx), _spendAuthorization));
     }
 
     function _cleanupDoubleSpendingStandardExits(uint256 _utxoPos, bytes _txbytes)
@@ -1229,16 +1261,6 @@ contract RootChain {
         _validateByTxType(PlasmaCore.getTxType(_tx), _inFlightExit, _tx);
     }
 
-    function _validateByTxType(uint256 txtype, InFlightExit storage _inFlightExit, bytes _tx)
-        internal
-        view
-    {
-        // here registry comes into play
-        // TODO: add an example
-        if (txtype == 0) return;
-        require(false, "unknown tx type");
-    }
-
     /**
      * @dev Returns the number of required inputs and sum of the outputs for a transaction.
      * @param _tx RLP encoded transaction.
@@ -1457,6 +1479,15 @@ contract RootChain {
         return blknum % CHILD_BLOCK_INTERVAL != 0;
     }
 
+    /**
+     * @dev Can be called only once in `init`.
+     */
+    function _initOperator()
+    {
+        require(operator == address(0));
+        operator = msg.sender;
+    }
+
     function unpackGuard(bytes32 _guard, bytes _preimage)
         pure
         returns (RLP.RLPItem[])
@@ -1465,6 +1496,8 @@ contract RootChain {
         RLP.RLPItem[] memory clearguard = _preimage.toRLPItem().toList();
         return clearguard;
     }
+
+    // registries land; all of those functions are txtype or outputtype specific
 
     function getOwner(RLP.RLPItem[] _clearguard)
         pure
@@ -1483,6 +1516,16 @@ contract RootChain {
         return _clearguard[1].toAddress();
     }
 
+    function _validateByTxType(uint256 txtype, InFlightExit storage _inFlightExit, bytes _tx)
+        internal
+        view
+    {
+        // here registry comes into play
+        // TODO: add an example
+        if (txtype == 0) return;
+        require(false, "unknown tx type");
+    }
+
     /* function isMVP(uint256 txType) */
     /*     pure */
     /*     returns (bool) */
@@ -1492,12 +1535,4 @@ contract RootChain {
     /* } */
 
 
-    /**
-     * @dev Can be called only once in `init`.
-     */
-    function _initOperator()
-    {
-        require(operator == address(0));
-        operator = msg.sender;
-    }
 }
