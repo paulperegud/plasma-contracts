@@ -12,8 +12,18 @@ contract RLPReaderChecksum {
     using RLPReader for bytes;
     using RLPReader for RLPReader.RLPItem;
 
+    function please_throw(uint256 input)
+        public
+        pure
+        returns (bytes32)
+    {
+        require(input == 5);
+        return bytes32(0);
+    }
+
     function decodeAndChecksum(bytes memory _data)
         public
+        pure
         returns (bytes32)
     {
         RLPReader.RLPItem memory item = _data.toRlpItem();
@@ -22,6 +32,7 @@ contract RLPReaderChecksum {
 
     function walk(RLPReader.RLPItem memory node, bytes32 hash)
         internal
+        pure
         returns (bytes32)
     {
         if (node.isList()) {
