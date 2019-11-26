@@ -46,13 +46,15 @@ contract RLPReaderChecksum {
     {
         if (node.isList()) {
             RLPReader.RLPItem[] memory list = node.toList();
+            // To distinguish between [1, [2]] and [1,2]
+            // add a "[" marker
+            hash = keccak256(abi.encodePacked(hash, uint256(91)));
             for (uint i = 0; i < list.length; i++) {
                 RLPReader.RLPItem memory item = list[i];
                 hash = walk(item, hash);
             }
-            // To distinguish between [1, [2]] and [1,2]
-            // add a marker when going up in the tree.
-            return keccak256(abi.encodePacked(hash, uint256(1)));
+            // add a "]" marker
+            return keccak256(abi.encodePacked(hash, uint256(93)));
         }
         return keccak256(abi.encodePacked(hash, node.toUint()));
     }
