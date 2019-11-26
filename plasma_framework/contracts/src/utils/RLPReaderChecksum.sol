@@ -30,6 +30,15 @@ contract RLPReaderChecksum {
         return walk(item, bytes32(0));
     }
 
+    function isList(bytes memory _data)
+        public
+        pure
+        returns (uint256)
+    {
+        if (_data.toRlpItem().isList()) return 1;
+        return 0;
+    }
+
     function walk(RLPReader.RLPItem memory node, bytes32 hash)
         internal
         pure

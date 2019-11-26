@@ -11,6 +11,11 @@
 
 	"wrongSizeList2": {
 		"in": "INVALID",
+		"out": "0xc0"
+	},
+
+	"wrongSizeList2": {
+		"in": "INVALID",
 		"out": "0xf80100"
 	},
 
