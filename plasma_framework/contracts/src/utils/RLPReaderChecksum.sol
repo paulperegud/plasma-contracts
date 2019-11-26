@@ -64,6 +64,6 @@ contract RLPReaderChecksum {
             // add a "]" marker
             return keccak256(abi.encodePacked(hash, uint256(93)));
         }
-        return keccak256(abi.encodePacked(hash, node.toUint()));
+        return keccak256(abi.encodePacked(hash, node));
     }
 }
