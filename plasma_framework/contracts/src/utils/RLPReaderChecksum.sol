@@ -39,6 +39,14 @@ contract RLPReaderChecksum {
         return 0;
     }
 
+    function toUint(bytes memory _data)
+        public
+        pure
+        returns (uint256)
+    {
+        return _data.toRlpItem().toUint();
+    }
+
     function walk(RLPReader.RLPItem memory node, bytes32 hash)
         internal
         pure
@@ -48,7 +56,7 @@ contract RLPReaderChecksum {
             RLPReader.RLPItem[] memory list = node.toList();
             // To distinguish between [1, [2]] and [1,2]
             // add a "[" marker
-            hash = keccak256(abi.encodePacked(hash, uint256(91)));
+            hash = keccak256(abi.encodePacked(uint256(91), hash));
             for (uint i = 0; i < list.length; i++) {
                 RLPReader.RLPItem memory item = list[i];
                 hash = walk(item, hash);
