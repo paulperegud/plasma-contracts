@@ -52,6 +52,9 @@ contract RLPReaderChecksum {
         pure
         returns (bytes32)
     {
+        if (node.len == 1) {
+            return keccak256(abi.encodePacked(hash, node.toUint()));
+        }
         if (node.isList()) {
             RLPReader.RLPItem[] memory list = node.toList();
             // To distinguish between [1, [2]] and [1,2]
@@ -64,6 +67,6 @@ contract RLPReaderChecksum {
             // add a "]" marker
             return keccak256(abi.encodePacked(hash, uint256(93)));
         }
-        return keccak256(abi.encodePacked(hash, node));
+        return keccak256(abi.encodePacked(hash, node.toUint()));
     }
 }
