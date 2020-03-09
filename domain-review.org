@@ -1,0 +1,75 @@
+* GOALS
+  1) define invariants
+  2) document your understanding of contract mechanics with accent on security of funds
+* Invariants
+  This invariants are all useful, but only some of them are easy to implement.
+  I see fuzzer's target as "extended contract" - a thing that tracks more than current contract
+  is capable of.
+*** IFE tx: sum of inputs >= sum of outputs [per token]
+*** sum of bonds put >= sum of bonds redeemed
+*** (sum of deposits >= sum of exits [per token]) OR (there are unchallenged but challengable exits / piggybacks)
+*** exit/piggyback's states can be described by enums: i.e. it is finalized XOR challenged XOR pending
+* TODO
+** DONE This findings need to be saved somewhere:
+   CLOSED: [2020-03-09 Mon 14:26]
+   Do a PR!!!
+** DONE Where is spending condition specified? How does it work?
+   CLOSED: [2020-03-02 Mon 15:56]
+   Condition is a contract that implements interface ISpendingCondition.verify(...).
+   Function receives input tx, spending tx, position of utxo in question, index of input
+   of spending tx, that points to spent utxo, and signature. In more generic sense
+   signature field should be seen as "witness" field. E.g. it may contain zksnark proof instead,
+   and its evaluation is "spending condition specific". I.e. it is opaque to the rest of the contract.
+** DONE How is the mapping {txtype, output_type} -> bool organized?
+   CLOSED: [2020-03-02 Mon 15:56]
+   SpendingConditionRegistry contains a mapping (outputType, spendingTxType) => Condition.
+   It's a hash(txtype, output_type) => address(ISpendingCondition).
+** DONE Where is `sum of inputs >= sum of outputs` specified?
+   CLOSED: [2020-03-02 Mon 16:40]
+   Every exit game defines startInFlightExitController and it should implement this functionality.
+   Example: PaymentInFlightExitRouter uses PaymentStartInFlightExit as it's startInFlightExitController.
+   It's main entry point is `run` function. It calls verifyStateTransition which defers the check to
+   implementation of IStateTransitionVerifier, which is called in this case PaymentTransactionStateTransitionVerifier.
+   See it's isCorrectStateTransition, which computes the sums per token and compares them.
+** DONE Where is decoding / structure / types are checked?
+   CLOSED: [2020-03-09 Mon 14:26]
+*** Entry point for whole thing is...
+    Whenever txbytes are presented to contract endpoint, GenericTransaction and it's derivatives 
+    NOTE: this is a cop-out answer.
+*** GenericTransaction.decode checks:
+**** Is binary a proper RLP encoding? Done by decoding it.
+**** Does transaction contain proper amount of items? See `TX_NUM_ITEMS`
+**** Is txType integer? Is it > 0?
+**** Is each of outputs correctly formed? See `decodeOutput(...)`
+*** Followed by PaymentTransactionModel that checks:
+**** Is amount of inputs too large? _MAX_INPUT_NUM
+**** Is outputs number in range (0, _MAX_OUTPUT_NUM]
+**** Input pointers are not null.
+* Resolved findings
+** [IMPROVEMENT] Why we iterate to MAX_INPUTS_NUM in exit finalization loop? Why not inputs.length?
+   A: spotted by Gerhard earlier, covered by PR.
+** [BUG] Why isAnyInputSpent(...) is taking token as an argument?
+   Semantically this splits logic of "only inputs or only outputs" into same but per token.
+   A: Created an issue: https://github.com/omisego/security-issues/issues/13
+** [INFO] Why both utxoPos and outputId are defined in standardExit struct?
+   A: Because in case of outputId we deliver and prove utxoPos
+   Q: Do we need to store it?
+   A: It's needed on challenge - oindex must be the same.
+* Findings
+** [IMPROVEMENT] Reduce amount of wasted space by working on StandardExit.bondSize and InFlightExit.bondSize fields
+   Those fields occupy 32 bytes of storage space for every exit.
+   Model it as a bondSize(n) = C*(2^n) - a step function with enough precision to follow gas price closely.
+   One byte to store the value of n is likely an overkill.
+   Current implementation is not more future-proof than step function solution.
+   The only acceptable reason for current state of things is simplicity. 
+   
+** [IMPROVEMENT] Consider dropping multiple queues for next version of the contract.
+   Context: since we need a way to protect funds in honest tokens from being affected by
+   attacking tokens (or just badly written) and anyone can add a token, we've considered two
+   possibilities: a single queue per token (what we have currently implemented), or separating
+   queue processing from actual withdrawal call (there are docs on that somewhere...).
+   It seems we were not aware of exact details of reverting mechanic of EVM.
+   Proposal: use try-catch (introduced in Solidity 6.0) and possibly limit amount of gas
+   forwarded to token contract as a measure to deal with possible out-of-gas behavior.
+   Example code testing this concept is here: https://gist.github.com/paulperegud/ba9147f557e670120c0b8090a8f918a0
+
